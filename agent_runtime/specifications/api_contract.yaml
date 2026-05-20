@@ -1,0 +1,27 @@
+# 인터페이스(Port) API 규격 계약서
+version: "1.0"
+layer: interfaces
+
+ports:
+  - name: SpecLoaderPort
+    methods:
+      - name: load
+        params: [{ name: path, type: str }]
+        returns: dict
+      - name: validate
+        params: [{ name: data, type: dict }]
+        returns: bool
+
+  - name: SandboxRunnerPort
+    methods:
+      - name: run_tests
+        params: [{ name: target, type: str }]
+        returns: SandboxResult
+
+  - name: ArtifactWriterPort
+    methods:
+      - name: write_section
+        params:
+          - { name: path, type: str }
+          - { name: content, type: str }
+        returns: ArtifactMetadata

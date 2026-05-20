@@ -1,0 +1,38 @@
+# .clauderules — Claude CLI 절대 명령 규칙서 (Inviolable)
+# 이 파일은 Claude CLI가 본 프로젝트에서 작업할 때 절대로 위반해서는 안 되는 규칙을 정의한다.
+
+[ARCHITECTURE]
+- 모든 외부 LLM/Vendor 호출 (Claude, OpenAI, Aider)은 반드시 `infrastructure/adapters/` 하위로만 격리한다.
+- `harness_engine/` 코어 오케스트레이션 로직에서 외부 SDK를 직접 import하지 마라.
+- `my-harness-platform/src/domain/`은 외부 의존성 0%를 유지한다 (순수 도메인 레이어).
+- 클린 아키텍처 의존성 방향: domain ← use_cases ← interfaces ← infrastructure.
+
+[CODE_GENERATION]
+- 코드 생성 시 파일 상단에 반드시 `# @generated` 마커를 삽입한다.
+- 파일 저장 시 `# BEGIN GENERATED` ~ `# END GENERATED` 구간 기반 Patch만 허용한다.
+- 전체 Overwrite는 금지된다. 인간이 직접 수정한 영역(구간 밖)은 절대 덮어쓰지 마라.
+- 마커가 유실된 기존 파일을 만나면 즉시 `OverwriteError`를 발생시키고 중단한다.
+
+[STATE_HYGIENE]
+- LangGraph State에 traceback 전체 문자열을 누적 저장하지 마라.
+- Trace 로그는 반드시 `storage/traces/` 외부 파일로 격리하고 State에는 경로만 보관한다.
+- Ephemeral state와 persistent state를 분리하여 관리한다.
+
+[SECURITY]
+- AI가 생성한 코드를 로컬 호스트에서 직접 실행하지 마라.
+- 모든 테스트 실행은 `services/sandbox_runner.py`를 통해 Rootless Docker 컨테이너 안에서만 수행한다.
+- 강력한 Timeout 제약과 임시 워크스페이스 격리를 강제한다.
+
+[PROMPT_CONTRACT]
+- 마크다운 가이드는 Pydantic `PromptContract` 스키마로 검증한 뒤에만 주입한다.
+- Allowlist 섹션 (`## ROLE`, `## CONSTRAINTS`, `## OUTPUT_FORMAT`)만 발췌해서 사용한다.
+- 가이드 포맷 오염/위변조 감지 시 즉시 실행을 차단한다.
+
+[LLM_DETERMINISM]
+- LLM 호출 시 `temperature=0`을 강제한다.
+- 모든 prompt, spec, tool output 스냅샷을 `storage/replays/`에 JSON으로 저장한다.
+
+[FAILURE_HANDLING]
+- 3회 이상 동일 실패 반복, SECURITY_VIOLATION, INFRA_TIMEOUT, SPEC_DRIFT 발생 시
+  즉시 LangGraph `interrupt()`로 HITL 모드 진입.
+- 임의로 폴백/우회 로직을 추가해 보안 검증을 통과한 척 위장하지 마라.

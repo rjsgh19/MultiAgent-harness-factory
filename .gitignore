@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual env
+.venv/
+venv/
+env/
+.python-version
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Secrets / env
+.env
+.env.local
+*.pem
+*.key
+
+# Storage (격리된 동적 산출물 — git 추적 제외, 디렉토리 자체는 .gitkeep로 유지)
+storage/traces/*
+storage/replays/*
+storage/telemetry/*
+!storage/traces/.gitkeep
+!storage/replays/.gitkeep
+!storage/telemetry/.gitkeep
+
+# Claude memory (휘발성 컨텍스트)
+.claude/memory.json
+
+# Generated output (선별 추적)
+my-harness-platform/src/**/__pycache__/
+
+# Docker
+*.dockerignore.local

@@ -1,0 +1,30 @@
+# 클린 아키텍처 의존성 금지 규칙 명세서
+version: "1.0"
+policy: clean_architecture_dependency_rule
+
+# 안쪽 레이어는 바깥쪽 레이어를 import할 수 없다.
+layers:
+  - name: domain
+    path: my-harness-platform/src/domain
+    may_import: []
+  - name: use_cases
+    path: my-harness-platform/src/use_cases
+    may_import: [domain]
+  - name: interfaces
+    path: my-harness-platform/src/interfaces
+    may_import: [domain, use_cases]
+  - name: infrastructure
+    path: my-harness-platform/src/infrastructure
+    may_import: [domain, use_cases, interfaces]
+
+# 외부 SDK 격리: harness_engine은 어댑터를 통해서만 외부 호출.
+isolation_rules:
+  - rule: NO_VENDOR_SDK_IN_CORE
+    description: "harness_engine/agents 와 graph 모듈은 anthropic/openai 등 벤더 SDK 직접 import 금지."
+    forbidden_imports_in:
+      - harness_engine/agents
+      - harness_engine/graph
+    forbidden_modules:
+      - anthropic
+      - openai
+      - aider

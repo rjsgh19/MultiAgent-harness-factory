@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile harness_engine/__init__.py harness_engine/state/__init__.py harness_engine/state/failure_types.py harness_engine/state/ephemeral_state.py harness_engine/state/persistent_state.py harness_engine/services/__init__.py harness_engine/services/telemetry.py harness_engine/services/prompt_loader.py harness_engine/services/spec_loader.py harness_engine/services/sandbox_runner.py harness_engine/services/drift_detector.py harness_engine/services/artifact_writer.py harness_engine/services/replay_store.py harness_engine/agents/__init__.py harness_engine/agents/planner.py harness_engine/agents/engineer.py harness_engine/agents/reviewer.py harness_engine/graph/__init__.py harness_engine/graph/routing.py harness_engine/graph/hitl.py harness_engine/graph/workflow.py agent_runtime/memory/__init__.py agent_runtime/policy_engine/import_policy.py agent_runtime/policy_engine/filesystem_policy.py infrastructure/__init__.py infrastructure/adapters/__init__.py infrastructure/adapters/claude/__init__.py infrastructure/adapters/openai/__init__.py infrastructure/adapters/aider/__init__.py .claude/skills/run_harness_tests.py)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(python *)"
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+#!/usr/bin/env sh
+# .husky/pre-commit — 커밋 전 강제 검증 훅
+# 절대 --no-verify로 우회하지 마라. 우회는 .clauderules 위반이다.
+
+set -e
+
+echo "[husky] pre-commit: linting (ruff)…"
+ruff check harness_engine agent_runtime infrastructure my-harness-platform/src 2>/dev/null || {
+    echo "[husky] ruff 실패 — 커밋 차단" >&2
+    exit 1
+}
+
+echo "[husky] pre-commit: type check (mypy, 비차단)…"
+mypy harness_engine agent_runtime infrastructure 2>/dev/null || echo "[husky] mypy 경고 (커밋은 진행)"
+
+echo "[husky] pre-commit: 단위 테스트 하네스 실행…"
+if [ -d "my-harness-platform/tests/unit" ] && [ -n "$(ls -A my-harness-platform/tests/unit 2>/dev/null)" ]; then
+    pytest my-harness-platform/tests/unit --maxfail=1 -q || {
+        echo "[husky] 단위 테스트 실패 — 커밋 차단" >&2
+        exit 1
+    }
+fi
+
+echo "[husky] pre-commit: 매니페스트 무결성 검증…"
+python -c "
+import json, hashlib, pathlib, sys
+manifest_path = pathlib.Path('my-harness-platform/.generated_manifest.json')
+if not manifest_path.exists():
+    print('[husky] manifest 미존재 — 검증 스킵')
+    sys.exit(0)
+data = json.loads(manifest_path.read_text(encoding='utf-8'))
+broken = []
+for rel, entry in data.get('entries', {}).items():
+    p = pathlib.Path(rel)
+    if not p.exists():
+        broken.append((rel, 'missing'))
+        continue
+    actual = hashlib.sha256(p.read_bytes()).hexdigest()
+    if actual != entry.get('sha256'):
+        broken.append((rel, 'hash mismatch'))
+if broken:
+    print('[husky] 매니페스트 무결성 위반:', broken, file=sys.stderr)
+    sys.exit(1)
+" || exit 1
+
+echo "[husky] pre-commit: 모든 검증 통과 ✅"
