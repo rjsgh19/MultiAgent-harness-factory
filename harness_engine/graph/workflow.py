@@ -531,8 +531,49 @@ def build_workflow(project_root: Optional[Path] = None, llm_adapter: Any = None)
 
 
 def main() -> int:
-    """CLI 진입점 — stub LLM으로 파이프라인 형상을 검증."""
-    wf = build_workflow()
+    """CLI 진입점 — .env의 LLM_ENGINE 설정에 따라 어댑터를 주입하여 파이프라인 가동."""
+    import os
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass
+
+    engine = os.environ.get("LLM_ENGINE", "hybrid").lower()
+    adapter = None
+
+    if engine == "hybrid":
+        if os.environ.get("OPENAI_API_KEY") and os.environ.get("DEEPSEEK_API_KEY"):
+            from infrastructure.adapters.openai import OpenAIAdapter
+            from infrastructure.adapters.deepseek import DeepSeekAdapter
+            from infrastructure.adapters.hybrid import HybridAdapter
+            cheap = OpenAIAdapter(model="gpt-4o-mini")
+            smart = DeepSeekAdapter(model="deepseek-chat")
+            adapter = HybridAdapter(cheap_adapter=cheap, smart_adapter=smart)
+            print("[Harness Engine] 하이브리드 어댑터 장착 완료 (Planner/Reviewer: GPT-4o-mini, Engineer: DeepSeek)")
+        else:
+            print("[Harness Engine] 경고: 하이브리드 모드이나 API KEY(OPENAI_API_KEY, DEEPSEEK_API_KEY)가 누락되어 Stub LLM이 사용됩니다.")
+    
+    elif engine == "claude":
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            from infrastructure.adapters.claude import ClaudeAdapter
+            adapter = ClaudeAdapter()
+            print("[Harness Engine] 클로드 어댑터 장착 완료 (전체 에이전트: Claude 3.5 Sonnet)")
+        else:
+            print("[Harness Engine] 경고: 클로드 모드이나 ANTHROPIC_API_KEY가 누락되어 Stub LLM이 사용됩니다.")
+            
+    elif engine == "openai":
+        if os.environ.get("OPENAI_API_KEY"):
+            from infrastructure.adapters.openai import OpenAIAdapter
+            adapter = OpenAIAdapter(model="gpt-4o")
+            print("[Harness Engine] OpenAI 어댑터 장착 완료 (전체 에이전트: GPT-4o)")
+        else:
+            print("[Harness Engine] 경고: OpenAI 모드이나 OPENAI_API_KEY가 누락되어 Stub LLM이 사용됩니다.")
+            
+    else:
+        print(f"[Harness Engine] 경고: 알 수 없는 LLM_ENGINE '{engine}'. Stub LLM이 사용됩니다.")
+
+    wf = build_workflow(llm_adapter=adapter)
     try:
         result = wf.run_once()
     except HITLInterrupt as exc:

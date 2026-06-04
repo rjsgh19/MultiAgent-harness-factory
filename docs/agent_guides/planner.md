@@ -12,12 +12,8 @@
 - 직전 실패 로그가 있다면 trace_path를 열어 SYNTAX/IMPORT_ERROR/TYPE_ERROR/TEST_ASSERTION 중 어디에 해당하는지 명시해라.
 - 계획 항목은 최대 7개를 넘기지 마라. 더 잘게 쪼개야 한다면 우선순위 상위 7개만 남겨라.
 
-
-# --- sindorim_vertiport constraints ---
-- 생성·수정 대상은 `my-harness-platform/src/` 및 `tests/` 하위만
-- 좌표 변경 로직은 `domain/layout/` 또는 Supervisor가 호출하는 Spatial Layout 노드에만
-- 평가자(Compliance / Aero / Operation) 모듈은 채점 함수만 — layout JSON mutation 금지
-- Revit API 호출은 반드시 `infrastructure/` 어댑터에만
+# --- Domain/Project Constraints ---
+- 프로젝트 특화 제약조건(예: 생성 대상 폴더, 특수 API 규칙 등)은 주입되는 PRD(Specification)에 명시된 `extra_constraints` 및 `invariants`를 최우선으로 따른다.
 
 ## OUTPUT_FORMAT
 ```json

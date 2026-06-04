@@ -159,32 +159,38 @@ def _try_get_llm_adapter():
     """LLM 어댑터 로드 시도. 실패하면 None."""
     try:
         import os
-        # infrastructure 어댑터가 있으면 사용
+        from dotenv import load_dotenv
+        load_dotenv()
         from infrastructure.adapters import LLMRequest
+        
+        engine = os.environ.get("LLM_ENGINE", "hybrid").lower()
+        adapter = None
+        
+        if engine == "hybrid":
+            if os.environ.get("OPENAI_API_KEY") and os.environ.get("DEEPSEEK_API_KEY"):
+                from infrastructure.adapters.openai import OpenAIAdapter
+                from infrastructure.adapters.deepseek import DeepSeekAdapter
+                from infrastructure.adapters.hybrid import HybridAdapter
+                adapter = HybridAdapter(
+                    cheap_adapter=OpenAIAdapter(model="gpt-4o-mini"),
+                    smart_adapter=DeepSeekAdapter(model="deepseek-chat")
+                )
+        elif engine == "claude":
+            if os.environ.get("ANTHROPIC_API_KEY"):
+                from infrastructure.adapters.claude import ClaudeAdapter
+                adapter = ClaudeAdapter()
+        elif engine == "openai":
+            if os.environ.get("OPENAI_API_KEY"):
+                from infrastructure.adapters.openai import OpenAIAdapter
+                adapter = OpenAIAdapter(model="gpt-4o")
 
-        # Claude 어댑터 우선 시도
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if api_key:
-            from infrastructure.adapters.claude import ClaudeAdapter
-            adapter = ClaudeAdapter()
-
+        if adapter:
             def _call(system: str, user: str) -> str:
+                # prd_to_factory는 코드 생성이 아니므로 저렴한 모델(Planner 역할)로 동작
                 req = LLMRequest(system_prompt=system, user_prompt=user, temperature=0)
                 return adapter.complete(req).text
-
             return _call
 
-        # OpenAI 폴백
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if api_key:
-            from infrastructure.adapters.openai import OpenAIAdapter
-            adapter = OpenAIAdapter()
-
-            def _call(system: str, user: str) -> str:
-                req = LLMRequest(system_prompt=system, user_prompt=user, temperature=0)
-                return adapter.complete(req).text
-
-            return _call
     except (ImportError, Exception):
         pass
     return None

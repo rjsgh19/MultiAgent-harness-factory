@@ -12,12 +12,8 @@
 - 출력은 JSON으로만 응답하라. 코드 본문은 문자열로 인코딩한다.
 - `temperature=0` 가정 하에 결정적으로 작성하라. 같은 입력 → 같은 출력.
 
-
-# --- sindorim_vertiport constraints ---
-- 생성·수정 대상은 `my-harness-platform/src/` 및 `tests/` 하위만
-- 좌표 변경 로직은 `domain/layout/` 또는 Supervisor가 호출하는 Spatial Layout 노드에만
-- 평가자(Compliance / Aero / Operation) 모듈은 채점 함수만 — layout JSON mutation 금지
-- Revit API 호출은 반드시 `infrastructure/` 어댑터에만
+# --- Domain/Project Constraints ---
+- 프로젝트 특화 제약조건(예: 생성 대상 폴더, 특수 API 규칙 등)은 주입되는 PRD(Specification)에 명시된 `extra_constraints` 및 `invariants`를 최우선으로 따른다.
 
 ## OUTPUT_FORMAT
 ```json
