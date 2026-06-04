@@ -13,6 +13,19 @@
 # BEGIN GENERATED
 from __future__ import annotations
 
+import sys
+try:
+    import dotenv
+    import openai
+    import anthropic
+    import langgraph
+    import docker
+except ImportError as e:
+    print(f"\n⚠️ 필수 라이브러리({e.name})가 설치되지 않았습니다.", file=sys.stderr)
+    print("터미널에서 다음 명령어를 실행하여 의존성을 설치해주세요:", file=sys.stderr)
+    print("    pip install -e .\n", file=sys.stderr)
+    sys.exit(1)
+
 import json
 import os
 import shutil

@@ -22,6 +22,17 @@ SKILLS_DIR = Path(__file__).resolve().parent
 if str(SKILLS_DIR) not in sys.path:
     sys.path.insert(0, str(SKILLS_DIR))
 
+try:
+    import dotenv
+    import openai
+    import anthropic
+    import langgraph
+    import docker
+except ImportError as e:
+    print(f"\n⚠️ 필수 라이브러리({e.name})가 설치되지 않았습니다.", file=sys.stderr)
+    print("터미널에서 다음 명령어를 실행하여 의존성을 설치해주세요:", file=sys.stderr)
+    print("    pip install -e .\n", file=sys.stderr)
+    sys.exit(1)
 
 def main() -> int:
     parser = argparse.ArgumentParser(

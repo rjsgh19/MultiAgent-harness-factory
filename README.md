@@ -68,10 +68,20 @@ pip install -e ".[dev]"
 최상위 경로에 `.env` 파일을 생성하고 LLM API 키를 입력합니다 (Claude 기반 권장).
 ```env
 ANTHROPIC_API_KEY="sk-ant-..."
-# 또는
-# OPENAI_API_KEY="sk-..."
+# 또는 OPENAI_API_KEY="sk-..."
+
+# [선택] 샌드박스 실행 환경 토글 (기본값: true)
+# true: Docker 샌드박스에서 격리 테스트 진행 (Docker Desktop 필요)
+# false: 로컬 윈도우/호스트 환경에서 직접 pytest 진행 (pyRevit 등 로컬 의존성 프로젝트에 적합)
+USE_DOCKER=false
+
+# [필수] 현재 가동할 타겟 도메인(Micro-PRD) 이름
+# 공장 가동 시 agent_runtime/specifications/ 아래의 어떤 사양서를 읽을지 결정합니다.
+# ❌ 틀린 예: TARGET_DOMAIN=my_project_domain_spec.yaml (확장자 포함 금지)
+# ⭕ 바른 예: TARGET_DOMAIN=my_project (접두사만 입력)
+TARGET_DOMAIN=pre_locking_agent
 ```
-*(참고: Docker Desktop이 샌드박스 테스트 실행을 위해 로컬에 켜져 있어야 합니다.)*
+*(주의: 공장 가동 시 의존성 누락 에러가 발생한다면, 터미널에서 `pip install -e .` 명령어를 실행하여 필수 패키지(`python-dotenv`, `docker`, `anthropic` 등)를 한 번에 설치할 수 있습니다.)*
 
 ### 2. PRD 문서로 산출물 자동 생성
 
@@ -159,12 +169,16 @@ example_domain
    - 백지 상태에서 시작하기보다는, 프로젝트 전체 목표와 예상되는 큰 워크플로우(어떤 에이전트들이 어느 순서로 실행될지)를 담은 아주 가벼운 `master_workflow_prd.md`를 먼저 작성해 둡니다. 구체적인 데이터 규격이나 로직은 비워둡니다.
 2. **Micro-PRD 작성 및 하네스 가동 (기능별 바텀업)**
    - 당장 구현하고자 하는 모듈/에이전트의 세부 요구사항을 담은 Micro-PRD(예: `docs/prd/01_pre_locking_agent_prd.md`)를 작성합니다.
-   - 작성된 Micro-PRD를 하네스 공장에 주입하여 파이썬 코드를 자동 생성 및 패치합니다.
+   - **중요:** 하네스 공장을 가동하기 직전, `.env` 파일의 `TARGET_DOMAIN` 값을 현재 작업하려는 타겟으로 직접 변경해 줍니다. (주의: `_domain_spec.yaml`을 제외한 접두사만 입력해야 합니다. 예: `pre_locking_agent`)
+   - 스크립트를 실행하여 작성된 Micro-PRD를 하네스 공장에 주입하고 코드를 자동 생성 및 패치합니다.
 3. **PRD 기반 피드백 및 코드 고도화**
    - 코드가 생성된 후 의도와 다르다면, 코드를 직접 수정하는 대신 **Micro-PRD의 제약 조건과 인바리언트를 수정**하여 공장을 다시 돌림으로써 코드를 고도화합니다.
 4. **Main-PRD 및 명세 역동기화**
    - 개별 기능의 구현이 완료되거나 인터페이스가 구체화되면, AI 에이전트에게 "구현된 결과물과 Micro-PRD 구조에 맞게 Main-PRD(`docs/prd/master_workflow_prd.md`)와 연동 사양을 수정해줘"라고 요청합니다.
    - 전체 시스템 구조와 에이전트 간 공용 컨텍스트(`ctx`)의 연결성을 Main-PRD에 최종 반영합니다.
+5. **통합 공장 가동 (Auto-Wiring)**
+   - 메인 명세 갱신이 끝나면, `.env`의 타겟을 `TARGET_DOMAIN=master_workflow` (또는 해당 메인 타겟명)로 변경하고 공장을 마지막으로 가동합니다.
+   - 공장이 개별 에이전트들을 하나로 묶어주는 슈퍼바이저(Supervisor) 라우팅 로직을 자동 생성하여 전체 시스템을 완성(조립)합니다.
 
 ---
 

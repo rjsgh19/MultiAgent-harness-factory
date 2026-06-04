@@ -25,6 +25,7 @@ from harness_engine.services.telemetry import get_telemetry
 
 @dataclass(frozen=True)
 class SandboxConfig:
+    use_docker: bool = os.environ.get("USE_DOCKER", "true").lower() == "true"
     image: str = os.environ.get("SANDBOX_DOCKER_IMAGE", "python:3.11-slim")
     timeout_seconds: int = int(os.environ.get("SANDBOX_TIMEOUT_SECONDS", "120"))
     memory_limit: str = os.environ.get("SANDBOX_MEMORY_LIMIT", "512m")
@@ -62,12 +63,22 @@ class SandboxRunner:
         trace_id = trace_id or self._telemetry.new_trace_id()
         started = time.monotonic()
         trace_file = trace_path_for("sandbox", self.config.traces_dir)
+        host_target = Path(target).resolve()
+        if not host_target.exists():
+            return self._fail(
+                trace_file, FailureType.UNKNOWN, started, trace_id,
+                f"테스트 타겟 경로 부재: {host_target}",
+            )
+
+        if not self.config.use_docker:
+            return self._run_local(host_target, trace_id, started, trace_file)
+
         try:
             import docker  # type: ignore
         except ImportError as exc:
             return self._fail(
                 trace_file, FailureType.SECURITY_VIOLATION, started, trace_id,
-                f"docker SDK 미설치 - 호스트 폴백 거부: {exc}",
+                f"docker SDK 미설치 - 로컬 폴백 모드(USE_DOCKER=false)를 켜주세요: {exc}",
             )
 
         try:
@@ -76,14 +87,7 @@ class SandboxRunner:
         except Exception as exc:  # noqa: BLE001 — Docker 데몬 접근 자체가 광범위 예외 가능
             return self._fail(
                 trace_file, FailureType.INFRA_TIMEOUT, started, trace_id,
-                f"docker 데몬 접근 실패: {exc!r}",
-            )
-
-        host_target = Path(target).resolve()
-        if not host_target.exists():
-            return self._fail(
-                trace_file, FailureType.UNKNOWN, started, trace_id,
-                f"테스트 타겟 경로 부재: {host_target}",
+                f"docker 데몬 접근 실패 (도커를 켜거나 USE_DOCKER=false로 변경): {exc!r}",
             )
 
         cmd = self._build_command()
@@ -146,6 +150,57 @@ class SandboxRunner:
             self._safe_remove(container)
 
     # === Internal ===
+
+    def _run_local(self, host_target: Path, trace_id: str, started: float, trace_file: Path) -> SandboxResult:
+        """Docker 대신 로컬 subprocess로 직접 pytest를 실행합니다."""
+        import subprocess
+        import sys
+        
+        cmd = [sys.executable, "-m", "pytest", "--maxfail=5", "-q", "."]
+        self._telemetry.event(
+            "sandbox", "spawn", trace_id, image="local-python",
+            timeout=self.config.timeout_seconds, cmd=" ".join(cmd),
+        )
+
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=str(host_target),
+                capture_output=True,
+                text=True,
+                timeout=self.config.timeout_seconds,
+            )
+            logs = result.stdout + "\n" + result.stderr
+            trace_file.write_text(logs, encoding="utf-8")
+            
+            exit_code = result.returncode
+            failure_type = None if exit_code == 0 else self._classify(logs)
+            duration = time.monotonic() - started
+            
+            self._telemetry.event(
+                "sandbox", "exit", trace_id,
+                exit_code=exit_code, duration_sec=round(duration, 3),
+                trace_path=str(self._rel(trace_file)),
+            )
+            return SandboxResult(
+                passed=exit_code == 0,
+                exit_code=exit_code,
+                duration_seconds=duration,
+                failure_type=failure_type,
+                trace_path=str(self._rel(trace_file)),
+                stdout_excerpt=self._excerpt(logs),
+            )
+        except subprocess.TimeoutExpired as exc:
+            logs = (exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or "")) + "\n" + (exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or ""))
+            return self._fail(
+                trace_file, FailureType.INFRA_TIMEOUT, started, trace_id,
+                f"sandbox timeout 초과 ({self.config.timeout_seconds}s) — 로컬 폴백\n{logs}",
+            )
+        except Exception as exc:
+            return self._fail(
+                trace_file, FailureType.from_exception(exc), started, trace_id,
+                f"로컬 실행 예외: {exc!r}",
+            )
 
     def _build_command(self) -> str:
         # 디폴트는 사전 빌드 이미지 가정 → pip install 단계 생략.
