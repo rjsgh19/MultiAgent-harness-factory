@@ -62,6 +62,15 @@ class EngineerAgent:
     @staticmethod
     def _parse_patches(raw: str) -> dict[str, Any]:
         try:
+            raw = raw.strip()
+            if raw.startswith("```"):
+                lines = raw.splitlines()
+                if lines[0].startswith("```json") or lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                raw = "\n".join(lines).strip()
+
             data = json.loads(raw)
             if not isinstance(data, dict) or "patches" not in data:
                 raise ValueError("patches 키 누락")

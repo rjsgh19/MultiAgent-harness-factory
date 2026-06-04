@@ -76,11 +76,24 @@ class PlannerAgent:
     def _compose_user_prompt(
         self, specs: dict[str, dict[str, Any]], failure_block: str
     ) -> tuple[str, str]:
-        # 스펙 인덱스를 1KB 내외로 압축 — 키 목록 + version만 노출.
-        spec_index = {
-            name: {"version": s.get("version"), "top_keys": sorted(s.keys())}
-            for name, s in specs.items()
-        }
+        import os
+        target_domain = os.environ.get("TARGET_DOMAIN", "harness_automation")
+        
+        # 스펙 인덱스 압축 — 타겟 도메인 스펙인 경우 contracts 계약 정보를 함께 제공
+        spec_index = {}
+        for name, s in specs.items():
+            if target_domain in name or name == "domain_spec":
+                spec_index[name] = {
+                    "version": s.get("version"),
+                    "top_keys": sorted(s.keys()),
+                    "contracts": s.get("contracts", [])
+                }
+            else:
+                spec_index[name] = {
+                    "version": s.get("version"),
+                    "top_keys": sorted(s.keys())
+                }
+                
         spec_block = (
             "# Specs Index\n"
             f"{json.dumps(spec_index, ensure_ascii=False, indent=2)}\n\n"
@@ -95,6 +108,15 @@ class PlannerAgent:
     @staticmethod
     def _parse_json(raw: str, fallback_diagnosis: str) -> dict[str, Any]:
         try:
+            raw = raw.strip()
+            if raw.startswith("```"):
+                lines = raw.splitlines()
+                if lines[0].startswith("```json") or lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                raw = "\n".join(lines).strip()
+
             data = json.loads(raw)
             if not isinstance(data, dict):
                 raise ValueError("계획은 JSON object여야 함")

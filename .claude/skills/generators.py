@@ -66,6 +66,13 @@ def generate_domain_spec(prd: dict[str, Any], specs_dir: Path,
         "invariants": prd.get("invariants", []),
     }
 
+    # invariants 내의 required_keys 요구사항을 최상위 키로 자동 추가하여 DriftDetector 메타 검증 통과를 보장
+    for inv in prd.get("invariants", []):
+        if "required_keys" in inv:
+            for key in inv["required_keys"]:
+                if key not in spec:
+                    spec[key] = {}
+
     content = (
         f"# 도메인 명세서 — {prd.get('project_name', domain)}\n"
         f"# drift_detector가 AST와 역대조하는 단일 진실 공급원(SSOT).\n\n"

@@ -43,10 +43,12 @@ def main() -> int:
     print(f"[prd_to_factory] PRD LLM 파싱 준비 중: {prd_path}")
     
     # === 1. LLM 어댑터 확인 ===
-    llm_fn = _try_get_llm_adapter()
+    llm_fn, err_msg = _try_get_llm_adapter()
     if not llm_fn:
-        print("[prd_to_factory] ❌ LLM 어댑터를 찾을 수 없습니다.")
-        print("  .env 파일에 ANTHROPIC_API_KEY 또는 OPENAI_API_KEY를 설정해주세요.")
+        print("[prd_to_factory] [X] LLM 어댑터를 생성할 수 없습니다.")
+        if err_msg:
+            print(f"  이유: {err_msg}")
+        print("  .env 파일의 설정 및 파이썬 의존성 패키지(python-dotenv, openai 등) 설치 여부를 확인해주세요.")
         return 1
 
     # === 2. 100% LLM 기반 PRD 파싱 ===
@@ -155,45 +157,64 @@ def main() -> int:
     return 0
 
 
-def _try_get_llm_adapter():
-    """LLM 어댑터 로드 시도. 실패하면 None."""
+def _try_get_llm_adapter() -> tuple[any, str | None]:
+    """LLM 어댑터 로드 시도. (callable_fn, error_msg) 반환."""
     try:
         import os
-        from dotenv import load_dotenv
-        load_dotenv()
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+        except ImportError:
+            # python-dotenv가 없어도 시스템 환경변수를 사용할 수 있으므로 계속 진행
+            pass
+            
         from infrastructure.adapters import LLMRequest
         
         engine = os.environ.get("LLM_ENGINE", "hybrid").lower()
         adapter = None
         
         if engine == "hybrid":
-            if os.environ.get("OPENAI_API_KEY") and os.environ.get("DEEPSEEK_API_KEY"):
-                from infrastructure.adapters.openai import OpenAIAdapter
-                from infrastructure.adapters.deepseek import DeepSeekAdapter
-                from infrastructure.adapters.hybrid import HybridAdapter
-                adapter = HybridAdapter(
-                    cheap_adapter=OpenAIAdapter(model="gpt-4o-mini"),
-                    smart_adapter=DeepSeekAdapter(model="deepseek-chat")
-                )
+            openai_key = os.environ.get("OPENAI_API_KEY")
+            deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
+            if not openai_key or not deepseek_key:
+                missing = []
+                if not openai_key: missing.append("OPENAI_API_KEY")
+                if not deepseek_key: missing.append("DEEPSEEK_API_KEY")
+                return None, f"hybrid 엔진을 활성화하려면 다음 환경변수가 필요합니다: {', '.join(missing)}"
+                
+            from infrastructure.adapters.openai import OpenAIAdapter
+            from infrastructure.adapters.deepseek import DeepSeekAdapter
+            from infrastructure.adapters.hybrid import HybridAdapter
+            adapter = HybridAdapter(
+                cheap_adapter=OpenAIAdapter(model="gpt-4o-mini"),
+                smart_adapter=DeepSeekAdapter(model="deepseek-chat")
+            )
         elif engine == "claude":
-            if os.environ.get("ANTHROPIC_API_KEY"):
-                from infrastructure.adapters.claude import ClaudeAdapter
-                adapter = ClaudeAdapter()
+            anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+            if not anthropic_key:
+                return None, "claude 엔진을 활성화하려면 ANTHROPIC_API_KEY 환경변수가 필요합니다."
+            from infrastructure.adapters.claude import ClaudeAdapter
+            adapter = ClaudeAdapter()
         elif engine == "openai":
-            if os.environ.get("OPENAI_API_KEY"):
-                from infrastructure.adapters.openai import OpenAIAdapter
-                adapter = OpenAIAdapter(model="gpt-4o")
+            openai_key = os.environ.get("OPENAI_API_KEY")
+            if not openai_key:
+                return None, "openai 엔진을 활성화하려면 OPENAI_API_KEY 환경변수가 필요합니다."
+            from infrastructure.adapters.openai import OpenAIAdapter
+            adapter = OpenAIAdapter(model="gpt-4o")
+        else:
+            return None, f"지원하지 않는 LLM_ENGINE 값입니다: {engine}"
 
         if adapter:
             def _call(system: str, user: str) -> str:
                 # prd_to_factory는 코드 생성이 아니므로 저렴한 모델(Planner 역할)로 동작
                 req = LLMRequest(system_prompt=system, user_prompt=user, temperature=0)
                 return adapter.complete(req).text
-            return _call
+            return _call, None
 
-    except (ImportError, Exception):
-        pass
-    return None
+    except Exception as e:
+        return None, f"어댑터 로딩 에러 ({type(e).__name__}): {e}"
+        
+    return None, "알 수 없는 이유로 어댑터를 생성하지 못했습니다."
 
 
 def _validate(specs_dir: Path, guides_dir: Path) -> list[str]:

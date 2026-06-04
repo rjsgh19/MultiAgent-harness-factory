@@ -44,7 +44,7 @@ class ReviewerAgent:
                 "verdict": "FAIL",
                 "failure_type": FailureType.SPEC_DRIFT.value,
                 "issues": [f"Spec drift detected: {drift_summary[:200]}"],
-                "summary": "결정적 규칙 판정 — Spec drift로 즉시 FAIL (LLM 호출 생략)",
+                "summary": "결정적 규칙 판정 - Spec drift로 즉시 FAIL (LLM 호출 생략)",
             }
             self.replays.save(ReplaySnapshot(
                 run_id=run_id, trace_id=trace_id, node="reviewer",
@@ -62,7 +62,7 @@ class ReviewerAgent:
                 "verdict": "FAIL",
                 "failure_type": decided_failure,
                 "issues": [f"Sandbox test failed: {sandbox_excerpt[:200]}"],
-                "summary": "결정적 규칙 판정 — Sandbox 실패로 즉시 FAIL (LLM 호출 생략)",
+                "summary": "결정적 규칙 판정 - Sandbox 실패로 즉시 FAIL (LLM 호출 생략)",
             }
             self.replays.save(ReplaySnapshot(
                 run_id=run_id, trace_id=trace_id, node="reviewer",
@@ -104,6 +104,15 @@ class ReviewerAgent:
     @staticmethod
     def _safe_parse(raw: str) -> dict[str, Any]:
         try:
+            raw = raw.strip()
+            if raw.startswith("```"):
+                lines = raw.splitlines()
+                if lines[0].startswith("```json") or lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                raw = "\n".join(lines).strip()
+
             data = json.loads(raw)
             if not isinstance(data, dict):
                 return {}

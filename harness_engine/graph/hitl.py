@@ -51,7 +51,8 @@ class HITLController:
 
         get_telemetry().warning(
             "hitl", trace_id, "HITL interrupt 발동",
-            run_id=run_id, **{k: v for k, v in payload.items() if k != "reason"},
+            run_id=run_id,
+            **{k: v for k, v in payload.items() if k not in ("reason", "run_id", "trace_id")},
         )
         try:
             from langgraph.types import interrupt  # type: ignore

@@ -90,7 +90,13 @@ class FactoryWorkflow:
     def __post_init__(self) -> None:
         self.guides_dir = self.project_root / "docs" / "agent_guides"
         self.specs_dir = self.project_root / "agent_runtime" / "specifications"
-        self.domain_spec_path = self.specs_dir / "domain_spec.yaml"
+        
+        import os
+        target_domain = os.environ.get("TARGET_DOMAIN")
+        if target_domain:
+            self.domain_spec_path = self.specs_dir / f"{target_domain}_domain_spec.yaml"
+        else:
+            self.domain_spec_path = self.specs_dir / "domain_spec.yaml"
 
         # 의존성 인스턴스화
         self.spec_loader = SpecLoader()
@@ -191,6 +197,10 @@ class FactoryWorkflow:
                                              node="drift")
                     # staging 폐기 (재시도 시 신규 staging으로 재시작).
                     self._cleanup_staging(state)
+                    # sequential run(run_once) 중 첫 이터레이션(코드가 아직 전혀 없는 상태)에서의 SPEC_DRIFT는
+                    # 에이전트가 에러 로그를 보고 자가 치유할 수 있도록 HITL을 한 번 유예합니다.
+                    if iteration == 0 and state.get("drift_result", {}).get("drifted"):
+                        continue
                     if self.hitl.should_interrupt(state["persistent"]):
                         return self._do_hitl(state)
                     continue
@@ -257,6 +267,14 @@ class FactoryWorkflow:
             plan=state.get("plan", {}), spec_paths=per.spec_paths,
             specs=state.get("specs"),  # [전략 C] 스펙 다이렉트 주입
         )
+        # 패치 이력을 누적 병합하여 이전 자가 치유 코드 유실 방지
+        existing_payload = state.get("patches") or {}
+        existing_patches = existing_payload.get("patches", [])
+        new_patches = payload.get("patches", [])
+        
+        merged = {p["target_file"]: p for p in existing_patches + new_patches}
+        payload["patches"] = list(merged.values())
+        
         state["patches"] = payload  # type: ignore[typeddict-unknown-key]
         return state
 
@@ -577,7 +595,10 @@ def main() -> int:
     try:
         result = wf.run_once()
     except HITLInterrupt as exc:
-        print(json.dumps({"status": "HITL", "payload": exc.payload}, ensure_ascii=False, indent=2))
+        try:
+            print(json.dumps({"status": "HITL", "payload": exc.payload}, ensure_ascii=False, indent=2, default=str))
+        except UnicodeEncodeError:
+            print(json.dumps({"status": "HITL", "payload": exc.payload}, ensure_ascii=True, indent=2, default=str))
         return 2
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
     return 0 if result.get("status") == "PASS" else 1

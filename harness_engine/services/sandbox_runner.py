@@ -67,7 +67,7 @@ class SandboxRunner:
         except ImportError as exc:
             return self._fail(
                 trace_file, FailureType.SECURITY_VIOLATION, started, trace_id,
-                f"docker SDK 미설치 — 호스트 폴백 거부: {exc}",
+                f"docker SDK 미설치 - 호스트 폴백 거부: {exc}",
             )
 
         try:
