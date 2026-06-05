@@ -612,9 +612,26 @@ def main() -> int:
             print(json.dumps({"status": "HITL", "payload": exc.payload}, ensure_ascii=False, indent=2, default=str))
         except UnicodeEncodeError:
             print(json.dumps({"status": "HITL", "payload": exc.payload}, ensure_ascii=True, indent=2, default=str))
+            
+        print("\n" + "="*60)
+        print("🚨 [HITL INTERRUPT] 에러 복구 한계 도달 - 수동 개입이 필요합니다 🚨")
+        failure = exc.payload.get("last_failure", {})
+        if failure:
+            print(f"❌ 에러 요약: {failure.get('summary')}")
+            print(f"📁 상세 로그: {failure.get('trace_path')}")
+        print("="*60 + "\n")
         return 2
+
+    status = result.get("status")
     print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
-    return 0 if result.get("status") == "PASS" else 1
+    
+    print("\n" + "="*60)
+    if status == "PASS":
+        print("✅ [SUCCESS] 워크플로우 정상 완료! 모든 테스트 통과 및 파일 적용 성공! ✅")
+    else:
+        print(f"⚠️ [FINISHED] 워크플로우 종료 (상태: {status}) ⚠️")
+    print("="*60 + "\n")
+    return 0 if status == "PASS" else 1
 
 
 if __name__ == "__main__":
