@@ -59,6 +59,10 @@ class HITLController:
 
             return interrupt(payload)
         except ImportError:
-            # 폴백: 호스트에서 직접 실행 중일 때 명확한 예외로 실행을 멈춘다.
+            # 폴백: LangGraph 미설치 환경
+            raise HITLInterrupt(payload) from None
+        except RuntimeError:
+            # 폴백: LangGraph는 설치되어 있으나 그래프 컨텍스트 밖에서 실행 중
+            # (예: python -m harness_engine.graph.workflow 독립 실행 모드)
             raise HITLInterrupt(payload) from None
 # END GENERATED

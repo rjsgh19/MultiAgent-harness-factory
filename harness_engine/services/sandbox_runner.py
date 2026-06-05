@@ -25,19 +25,19 @@ from harness_engine.services.telemetry import get_telemetry
 
 @dataclass(frozen=True)
 class SandboxConfig:
-    use_docker: bool = os.environ.get("USE_DOCKER", "true").lower() == "true"
-    image: str = os.environ.get("SANDBOX_DOCKER_IMAGE", "python:3.11-slim")
-    timeout_seconds: int = int(os.environ.get("SANDBOX_TIMEOUT_SECONDS", "120"))
-    memory_limit: str = os.environ.get("SANDBOX_MEMORY_LIMIT", "512m")
-    cpu_quota: int = int(os.environ.get("SANDBOX_CPU_QUOTA", "50000"))  # 50% of single CPU
+    use_docker: bool = field(default_factory=lambda: os.environ.get("USE_DOCKER", "true").lower() == "true")
+    image: str = field(default_factory=lambda: os.environ.get("SANDBOX_DOCKER_IMAGE", "python:3.11-slim"))
+    timeout_seconds: int = field(default_factory=lambda: int(os.environ.get("SANDBOX_TIMEOUT_SECONDS", "120")))
+    memory_limit: str = field(default_factory=lambda: os.environ.get("SANDBOX_MEMORY_LIMIT", "512m"))
+    cpu_quota: int = field(default_factory=lambda: int(os.environ.get("SANDBOX_CPU_QUOTA", "50000")))  # 50% of single CPU
     workdir: str = "/sandbox"
     # Defaults는 사전 빌드 이미지를 가정한다: pytest 가 이미 들어 있는 이미지를 사용하고
     # network는 차단된 상태에서 동작한다. pip 다운로드가 필요한 경우만 명시적으로
     # SANDBOX_ALLOW_PIP=1 으로 일시 활성화해야 한다.
-    network_disabled: bool = os.environ.get("SANDBOX_ALLOW_PIP", "0") != "1"
+    network_disabled: bool = field(default_factory=lambda: os.environ.get("SANDBOX_ALLOW_PIP", "0") != "1")
     read_only_root: bool = True
-    skip_pip: bool = os.environ.get("SANDBOX_ALLOW_PIP", "0") != "1"
-    pip_install: tuple[str, ...] = ("pytest",)
+    skip_pip: bool = field(default_factory=lambda: os.environ.get("SANDBOX_ALLOW_PIP", "0") != "1")
+    pip_install: tuple = ("pytest",)
     traces_dir: Path = field(default_factory=lambda: Path(os.environ.get("STORAGE_TRACES_DIR", "storage/traces")))
 
 

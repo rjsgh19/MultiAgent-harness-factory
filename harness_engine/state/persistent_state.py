@@ -94,8 +94,12 @@ class PersistentState(BaseModel):
 class GraphState(TypedDict, total=False):
     """LangGraph 노드에 전달되는 최종 상태 컨테이너.
 
-    중요: 이 안에 traceback/코드본문/AST덤프를 절대 넣지 마라.
+    중요1: 이 안에 traceback/코드본문/AST덤프를 절대 넣지 마라.
     모든 무거운 페이로드는 storage/ 외부 파일에 격리하고 경로만 보관한다.
+    
+    중요2: 이 상태(State) 구조에 새로운 필드를 추가하거나 라우팅을 변경하려면,
+    코드를 직접 수정하지 말고 `docs/prd_template_prompt.md`를 활용하여
+    Micro-PRD의 [인바리언트] 및 [라우팅 규칙]을 먼저 업데이트해야 한다.
     """
 
     ephemeral: EphemeralState

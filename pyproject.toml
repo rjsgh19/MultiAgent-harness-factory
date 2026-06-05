@@ -7,7 +7,7 @@ name = "harness-automation-factory"
 version = "0.1.0"
 description = "Spec-driven enterprise-grade autonomous software factory built on LangGraph."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 authors = [
     { name = "Harness Automation Factory" }
 ]
