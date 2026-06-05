@@ -35,6 +35,11 @@ except ImportError as e:
     sys.exit(1)
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+
     parser = argparse.ArgumentParser(
         description="PRD 마크다운 → 하네스 공장 문서 자동 생성 (100% LLM 파싱 기반)",
     )
@@ -146,7 +151,14 @@ def main() -> int:
 
     # 3f. 테스트 스캐폴드 생성
     for test in prd.get("tests", []):
-        path, _ = generate_test_scaffold(test, tests_root, dry_run=dry_run)
+        path, _ = generate_test_scaffold(
+            test,
+            tests_root,
+            prd=prd,
+            raw_markdown=raw_markdown,
+            llm_complete=llm_fn,
+            dry_run=dry_run,
+        )
         result.created.append(str(path.relative_to(ROOT)))
 
     # === 4. 검증 ===

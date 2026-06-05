@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import textwrap
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+import json
 
 import yaml
 
@@ -234,8 +235,11 @@ def augment_factory_guides(prd: dict[str, Any], guides_dir: Path,
 # === Test Scaffold ===
 
 def generate_test_scaffold(test: dict[str, Any], tests_root: Path,
+                           prd: dict[str, Any] | None = None,
+                           raw_markdown: str | None = None,
+                           llm_complete: Callable[[str, str], str] | None = None,
                            dry_run: bool = False) -> tuple[Path, str]:
-    """단일 테스트 파일 스캐폴드 생성."""
+    """단일 테스트 파일 생성. llm_complete가 주어지면 LLM을 통해 Assert 로직이 구현된 실질적인 테스트 코드를 생성한다."""
     type_dir_map = {
         "unit": "unit",
         "integration": "integration",
@@ -250,33 +254,83 @@ def generate_test_scaffold(test: dict[str, Any], tests_root: Path,
 
     out_path = tests_root / subdir / filename
 
-    content = textwrap.dedent(f'''\
-    # @generated
-    """자동 생성된 테스트 스캐폴드 — {test["description"]}."""
-    # BEGIN GENERATED
-    from __future__ import annotations
+    content = ""
+    if llm_complete and prd and raw_markdown:
+        print(f"[prd_to_factory] LLM으로 {filename} 테스트 코드 작성 중...")
+        system_prompt = textwrap.dedent("""\
+        당신은 최고의 QA 자동화 엔지니어다.
+        사용자의 PRD 마크다운 전체와 요구하는 테스트 명세(JSON)를 바탕으로, 실제 작동하고 엄격하게 검증하는 pytest Python 테스트 코드를 작성하라.
 
-    import pytest
+        [작성 요구사항]
+        1. 테스트 대상 도메인 모듈(예: `domain.optimize_layout`, `domain.build_grid_and_masks` 등)을 정확히 import해야 한다.
+        2. 테스트 파일 내부에서 `my-harness-platform/src` 경로가 검색 가능하도록 반드시 아래 경로 추가 로직을 테스트 파일 최상단(import 직전)에 포함시켜라:
+        ```python
+        import sys
+        from pathlib import Path
+        SRC_ROOT = Path(__file__).resolve().parents[2] / "src"
+        if str(SRC_ROOT) not in sys.path:
+            sys.path.insert(0, str(SRC_ROOT))
+        ```
+        3. 테스트 코드는 반드시 PRD의 인바리언트(Invariants)와 검증 요구사항을 면밀히 검토하고, 이를 검증하는 실질적인 `assert` 구문을 다수 포함해야 한다.
+        4. `pytest.skip()`, `pass`, `TODO` 등 테스트 실행을 우회하거나 비워두는 구문은 엄격히 금지된다. 반드시 실패하고 성공할 수 있는 진짜 assert 로직으로만 100% 채워라.
+        5. 테스트 입력값은 PRD의 시그니처와 예시, 불변식 제약에 맞는 유효한 모의(Mock) 데이터 또는 테스트 데이터를 직접 만들어서 제공해야 한다.
+        6. 파일 상단에 `# @generated` 마커와 파일 설명을 넣고, 그 바로 밑에 `# BEGIN GENERATED` 마커를 넣은 뒤, 파일의 끝에 `# END GENERATED` 마커를 넣어 테스트 코드 전체(임포트문, 클래스, 함수 모두 포함)를 `# BEGIN GENERATED` ~ `# END GENERATED` 구간으로 감싸라.
+        7. 출력은 반드시 순수한 파이썬 코드만 반환하라. 마크다운 코드블록(```python)이나 다른 설명은 절대 추가하지 마라.
+        """)
+
+        user_prompt = f"""\
+        [원본 PRD 마크다운]
+        {raw_markdown}
+
+        [도메인 정보 JSON]
+        {json.dumps(prd, ensure_ascii=False, indent=2)}
+
+        [타겟 테스트 요구사항]
+        파일명: {filename}
+        유형: {test["type"]}
+        검증 내용: {test["description"]}
+
+        위 정보를 바탕으로, 해당 테스트의 요구사항과 PRD의 인바리언트를 엄격하게 검증하는 완벽한 파이썬 pytest 테스트 코드를 작성하라.
+        """
+
+        try:
+            raw_output = llm_complete(system_prompt, user_prompt)
+            if "```python" in raw_output:
+                raw_output = raw_output.split("```python")[1].split("```")[0]
+            elif "```" in raw_output:
+                raw_output = raw_output.split("```")[1].split("```")[0]
+            content = raw_output.strip()
+        except Exception as e:
+            print(f"[prd_to_factory] ⚠️ LLM 테스트 코드 생성 실패 ({e}), 스캐폴드로 폴백합니다.")
+            content = ""
+
+    if not content:
+        content = textwrap.dedent(f'''\
+        # @generated
+        """자동 생성된 테스트 스캐폴드 — {test["description"]}."""
+        # BEGIN GENERATED
+        from __future__ import annotations
+
+        import pytest
 
 
-    class Test{_to_class_name(filename)}:
-        """{test["description"]}"""
+        class Test{_to_class_name(filename)}:
+            """{test["description"]}"""
 
-        def test_placeholder(self) -> None:
-            """TODO: 실제 테스트 로직으로 교체."""
-            # 검증 내용: {test["description"]}
-            pytest.skip("스캐폴드 — 실제 구현 필요")
-    # END GENERATED
-    ''')
+            def test_placeholder(self) -> None:
+                """TODO: 실제 테스트 로직으로 교체."""
+                # 검증 내용: {test["description"]}
+                pytest.skip("스캐폴드 — 실제 구현 필요")
+        # END GENERATED
+        ''')
 
     if not dry_run:
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        if not out_path.exists():
-            out_path.write_text(content, encoding="utf-8")
-            # __init__.py 보장
-            init = out_path.parent / "__init__.py"
-            if not init.exists():
-                init.write_text("", encoding="utf-8")
+        out_path.write_text(content, encoding="utf-8")
+        # __init__.py 보장
+        init = out_path.parent / "__init__.py"
+        if not init.exists():
+            init.write_text("", encoding="utf-8")
     return out_path, content
 
 
