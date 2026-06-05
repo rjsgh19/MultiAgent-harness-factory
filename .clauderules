@@ -12,6 +12,7 @@
 - 파일 저장 시 `# BEGIN GENERATED` ~ `# END GENERATED` 구간 기반 Patch만 허용한다.
 - 전체 Overwrite는 금지된다. 인간이 직접 수정한 영역(구간 밖)은 절대 덮어쓰지 마라.
 - 마커가 유실된 기존 파일을 만나면 즉시 `OverwriteError`를 발생시키고 중단한다.
+- 테스트 코드(`test_*.py`)를 생성할 때 `pytest.skip()`, `pass`, `TODO` 등의 스캐폴딩(껍데기) 작성은 엄격히 금지하며, 반드시 PRD를 검증하는 실행 가능한 진짜 `assert` 로직을 100% 구현해야 한다.
 
 [STATE_HYGIENE]
 - LangGraph State에 traceback 전체 문자열을 누적 저장하지 마라.
